@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lung Cancer CT Scan Classifier</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
+            padding-bottom: 50px;
+        }
+        .header {
+            background-color: #343a40;
+            color: white;
+            padding: 30px 0;
+            margin-bottom: 40px;
+            text-align: center;
+        }
+        .container {
+            max-width: 900px;
+        }
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+            overflow: hidden;
+        }
+        .card-header {
+            background-color: #007bff;
+            color: white;
+            font-weight: 600;
+            padding: 15px 20px;
+        }
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .upload-area:hover {
+            border-color: #007bff;
+        }
+        .upload-icon {
+            font-size: 48px;
+            color: #007bff;
+            margin-bottom: 15px;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            border-color: #007bff;
+            padding: 10px 20px;
+            font-weight: 600;
+        }
+        .btn-primary:hover {
+            background-color: #0069d9;
+            border-color: #0062cc;
+        }
+        .result-section {
+            display: none;
+        }
+        .prediction-box {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-left: 5px solid #28a745;
+        }
+        .prediction-label {
+            font-size: 22px;
+            font-weight: 700;
+            color: #343a40;
+        }
+        .confidence-bar {
+            height: 25px;
+            border-radius: 4px;
+            background-color: #e9ecef;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+        .confidence-level {
+            height: 100%;
+            background-color: #28a745;
+            text-align: center;
+            color: white;
+            line-height: 25px;
+            font-weight: 600;
+            transition: width 0.5s;
+        }
+        .heatmap-container {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .heatmap-image {
+            max-width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .explanation-section {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            border-left: 5px solid #17a2b8;
+        }
+        .loader {
+            border: 6px solid #f3f3f3;
+            border-top: 6px solid #007bff;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 2s linear infinite;
+            margin: 20px auto;
+            display: none;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .class-probabilities {
+            margin-top: 15px;
+        }
+        .prob-bar {
+            height: 25px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+        .prob-label {
+            min-width: 100px;
+            text-align: right;
+            padding-right: 10px;
+            font-weight: 600;
+        }
+        .prob-value {
+            flex-grow: 1;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            height: 100%;
+            position: relative;
+        }
+        .prob-fill {
+            height: 100%;
+            transition: width 0.5s;
+        }
+        .prob-text {
+            position: absolute;
+            right: 10px;
+            top: 0;
+            line-height: 25px;
+            color: #212529;
+            font-weight: 600;
+        }
+        .benign-color { background-color: #28a745; }
+        .malignant-color { background-color: #dc3545; }
+        .normal-color { background-color: #17a2b8; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Lung cancer detector</h1>
+        <p class="lead">Upload a CT scan image to detect lung cancer</p>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <div class="card-header">Upload CT Scan Image</div>
+            <div class="card-body">
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">📁</div>
+                    <h4>Drag & Drop your image here</h4>
+                    <p>or</p>
+                    <input type="file" id="fileInput" accept=".jpg,.jpeg,.png" class="d-none">
+                    <button type="button" class="btn btn-primary" id="browseBtn">Browse Files</button>
+                </div>
+                <div class="selected-file mt-3" id="selectedFile" style="display: none;">
+                    <div class="d-flex align-items-center">
+                        <div class="me-3">Selected File:</div>
+                        <div class="flex-grow-1" id="fileName"></div>
+                        <button type="button" class="btn btn-sm btn-danger" id="removeFile">Remove</button>
+                    </div>
+                    <div class="mt-3">
+                        <button type="button" class="btn btn-primary" id="uploadBtn">Analyze Image</button>
+                    </div>
+                </div>
+                <div class="loader" id="loader"></div>
+            </div>
+        </div>
+
+        <div class="result-section" id="resultSection">
+            <div class="card">
+                <div class="card-header">Analysis Results</div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="prediction-box">
+                                <h3>Prediction</h3>
+                                <div class="prediction-label" id="predictionLabel">-</div>
+                                <div class="mt-2">Confidence:</div>
+                                <div class="confidence-bar">
+                                    <div class="confidence-level" id="confidenceLevel">0%</div>
+                                </div>
+                                
+                                <div class="class-probabilities">
+                                    <h5>Class Probabilities</h5>
+                                    <div class="prob-bar">
+                                        <div class="prob-label">Benign:</div>
+                                        <div class="prob-value">
+                                            <div class="prob-fill benign-color" id="benignProb" style="width: 0%"></div>
+                                            <div class="prob-text" id="benignProbText">0%</div>
+                                        </div>
+                                    </div>
+                                    <div class="prob-bar">
+                                        <div class="prob-label">Malignant:</div>
+                                        <div class="prob-value">
+                                            <div class="prob-fill malignant-color" id="malignantProb" style="width: 0%"></div>
+                                            <div class="prob-text" id="malignantProbText">0%</div>
+                                        </div>
+                                    </div>
+                                    <div class="prob-bar">
+                                        <div class="prob-label">Normal:</div>
+                                        <div class="prob-value">
+                                            <div class="prob-fill normal-color" id="normalProb" style="width: 0%"></div>
+                                            <div class="prob-text" id="normalProbText">0%</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="heatmap-container">
+                                <h4>Explanation Heatmap</h4>
+                                <img src="" class="heatmap-image" id="heatmapImage" alt="Grad-CAM Heatmap">
+                                <div class="mt-2 alert alert-info small" id="gradcamNotice" style="display: none;">
+                                    Note: Detailed heat map visualization (Grad-CAM) is not available for this prediction. A simplified visualization is shown instead.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="explanation-section">
+                        <h4>What does this mean?</h4>
+                        <p>The heatmap visualizes which regions of the CT scan influenced the model's decision:</p>
+                        <ul>
+                            <li><strong>Red/yellow areas</strong>: Regions that strongly contributed to the diagnosis. These areas were most important for the model's decision.</li>
+                            <li><strong>Blue/green areas</strong>: Regions with less influence on the diagnosis. The model didn't consider these areas as important.</li>
+                            <li><strong>No color (original image)</strong>: Areas that had minimal or no impact on the classification.</li>
+                        </ul>
+                        <p>The brighter and more intense the color, the stronger the influence that area had on the final classification.</p>
+                        <p id="explanationText"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const uploadArea = document.getElementById('uploadArea');
+            const fileInput = document.getElementById('fileInput');
+            const browseBtn = document.getElementById('browseBtn');
+            const selectedFile = document.getElementById('selectedFile');
+            const fileName = document.getElementById('fileName');
+            const removeFile = document.getElementById('removeFile');
+            const uploadBtn = document.getElementById('uploadBtn');
+            const loader = document.getElementById('loader');
+            const resultSection = document.getElementById('resultSection');
+            
+            // Prediction elements
+            const predictionLabel = document.getElementById('predictionLabel');
+            const confidenceLevel = document.getElementById('confidenceLevel');
+            const heatmapImage = document.getElementById('heatmapImage');
+            const explanationText = document.getElementById('explanationText');
+            
+            // Probability bars
+            const benignProb = document.getElementById('benignProb');
+            const malignantProb = document.getElementById('malignantProb');
+            const normalProb = document.getElementById('normalProb');
+            const benignProbText = document.getElementById('benignProbText');
+            const malignantProbText = document.getElementById('malignantProbText');
+            const normalProbText = document.getElementById('normalProbText');
+            
+            // Click browse button
+            browseBtn.addEventListener('click', function() {
+                fileInput.click();
+            });
+            
+            // File input change
+            fileInput.addEventListener('change', function() {
+                if (this.files && this.files[0]) {
+                    updateSelectedFile(this.files[0]);
+                }
+            });
+            
+            // Drag and drop handlers
+            uploadArea.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                this.style.borderColor = '#007bff';
+                this.style.backgroundColor = '#f1f8ff';
+            });
+            
+            uploadArea.addEventListener('dragleave', function() {
+                this.style.borderColor = '#ccc';
+                this.style.backgroundColor = '';
+            });
+            
+            uploadArea.addEventListener('drop', function(e) {
+                e.preventDefault();
+                this.style.borderColor = '#ccc';
+                this.style.backgroundColor = '';
+                
+                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                    updateSelectedFile(e.dataTransfer.files[0]);
+                }
+            });
+            
+            // Remove file button
+            removeFile.addEventListener('click', function() {
+                fileInput.value = '';
+                selectedFile.style.display = 'none';
+                uploadArea.style.display = 'block';
+            });
+            
+            // Upload button click
+            uploadBtn.addEventListener('click', function() {
+                if (fileInput.files && fileInput.files[0]) {
+                    uploadImage(fileInput.files[0]);
+                }
+            });
+            
+            // Update selected file UI
+            function updateSelectedFile(file) {
+                // Check if file is an image
+                if (!file.type.match('image.*')) {
+                    alert('Please select an image file (JPG, JPEG, or PNG).');
+                    return;
+                }
+                
+                fileName.textContent = file.name;
+                selectedFile.style.display = 'block';
+                uploadArea.style.display = 'none';
+            }
+            
+            // Upload and process image
+            function uploadImage(file) {
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                // Show loader
+                loader.style.display = 'block';
+                uploadBtn.disabled = true;
+                resultSection.style.display = 'none';
+                
+                // Send request
+                fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Hide loader
+                    loader.style.display = 'none';
+                    uploadBtn.disabled = false;
+                    
+                    // Display results
+                    displayResults(data);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred during prediction. Please try again.');
+                    
+                    // Hide loader
+                    loader.style.display = 'none';
+                    uploadBtn.disabled = false;
+                });
+            }
+            
+            // Display prediction results
+            function displayResults(data) {
+                // Show result section
+                resultSection.style.display = 'block';
+                
+                // Update prediction
+                predictionLabel.textContent = data.prediction;
+                
+                // Set confidence
+                const confidencePercent = (data.confidence * 100).toFixed(1) + '%';
+                confidenceLevel.style.width = confidencePercent;
+                confidenceLevel.textContent = confidencePercent;
+                
+                // Set color based on prediction
+                if (data.prediction === 'Benign') {
+                    confidenceLevel.style.backgroundColor = '#28a745';  // Green
+                } else if (data.prediction === 'Malignant') {
+                    confidenceLevel.style.backgroundColor = '#dc3545';  // Red
+                } else {
+                    confidenceLevel.style.backgroundColor = '#17a2b8';  // Blue
+                }
+                
+                // Set explanation text based on prediction
+                if (data.prediction === 'Malignant') {
+                    explanationText.innerHTML = 'The model has detected patterns consistent with <strong>malignant lung cancer</strong>. ' +
+                        'The highlighted areas in the heatmap show regions with suspicious nodules or masses that have characteristics ' +
+                        'typical of cancer such as irregular borders, spiculation, or larger size.';
+                } else if (data.prediction === 'Benign') {
+                    explanationText.innerHTML = 'The model has detected patterns consistent with <strong>benign lung abnormalities</strong>. ' +
+                        'The highlighted areas in the heatmap show non-cancerous findings such as well-defined nodules, ' +
+                        'calcifications, or other non-malignant tissue changes.';
+                } else {
+                    explanationText.innerHTML = 'The model indicates this is a <strong>normal lung scan</strong> without ' +
+                        'significant abnormalities. The heatmap shows which areas of normal lung tissue the model examined ' +
+                        'to make this determination.';
+                }
+                
+                // Update probability bars
+                updateProbBar(benignProb, benignProbText, data.class_probabilities['Benign']);
+                updateProbBar(malignantProb, malignantProbText, data.class_probabilities['Malignant']);
+                updateProbBar(normalProb, normalProbText, data.class_probabilities['Normal']);
+                
+                // Set heatmap image
+                heatmapImage.src = 'data:image/png;base64,' + data.heatmap_image;
+                
+                // Show notice if GradCAM is not available
+                const gradcamNotice = document.getElementById('gradcamNotice');
+                if (data.grad_cam_enabled === false) {
+                    gradcamNotice.style.display = 'block';
+                } else {
+                    gradcamNotice.style.display = 'none';
+                }
+            }
+            
+            // Update probability bar
+            function updateProbBar(barElement, textElement, probability) {
+                const percent = (probability * 100).toFixed(1) + '%';
+                barElement.style.width = percent;
+                textElement.textContent = percent;
+            }
+        });
+    </script>
+</body>
+</html> 
